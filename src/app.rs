@@ -1,3 +1,8 @@
+use egui::collapsing_header::CollapsingState;
+use egui::{Resize, ScrollArea, TopBottomPanel, vec2};
+use egui::WidgetType::{SelectableLabel, TextEdit};
+use serde::{Deserialize, Serialize};
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -7,7 +12,25 @@ pub struct TemplateApp {
 
     // this how you opt-out of serialization of a member
     #[serde(skip)]
-    value: f32,
+    value: i32,
+
+    method: RequestMethod,
+
+    request_host: String,
+
+    request_tab: String,
+
+    request_text: String,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
+enum RequestMethod {
+    Options,
+    Head,
+    Get,
+    Post,
+    Put,
+    Patch
 }
 
 impl Default for TemplateApp {
@@ -15,7 +38,11 @@ impl Default for TemplateApp {
         Self {
             // Example stuff:
             label: "Hello World!".to_owned(),
-            value: 2.7,
+            value: 0,
+            method: RequestMethod::Options,
+            request_host: String::new(),
+            request_tab: String::from("params"),
+            request_text: String::new(),
         }
     }
 }
@@ -45,72 +72,62 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { label, value } = self;
-
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        _frame.close();
-                    }
-                });
-            });
+            ui.heading("Letters");
         });
 
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
-
-            ui.add(egui::Slider::new(value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                *value += 1.0;
-            }
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.label("powered by ");
-                    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-                    ui.label(" and ");
-                    ui.hyperlink_to(
-                        "eframe",
-                        "https://github.com/emilk/egui/tree/master/crates/eframe",
-                    );
-                    ui.label(".");
+            ui.heading("Collections");
+            ui.separator();
+            ScrollArea::vertical()
+                .show(ui, |ui| {
+                    for i in 0..100 {
+                        let id = ui.make_persistent_id(format!("my_collapsing_header_{i}"));
+                        CollapsingState::load_with_default_open(ui.ctx(), id, false)
+                            .show_header(ui, |ui| {
+                                if ui.add(egui::SelectableLabel::new(self.value == i, i.to_string())).clicked() {
+                                    self.value = i;
+                                }
+                            })
+                            .body(|ui| ui.label("Body"));
+                        ui.separator();
+                    }
                 });
-            });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
+            TopBottomPanel::top("request_top_panel").resizable(true).show_inside(ui, |ui| {
+                ui.heading("Request");
 
-            ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
-            egui::warn_if_debug_build(ui);
-        });
-
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally choose either panels OR windows.");
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_source("ayy")
+                        .selected_text(format!("{:?}", self.method))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.method, RequestMethod::Options, "OPTIONS");
+                            ui.selectable_value(&mut self.method, RequestMethod::Head, "HEAD");
+                            ui.selectable_value(&mut self.method, RequestMethod::Get, "GET");
+                            ui.selectable_value(&mut self.method, RequestMethod::Patch, "PATCH");
+                            ui.selectable_value(&mut self.method, RequestMethod::Post, "POST");
+                            ui.selectable_value(&mut self.method, RequestMethod::Put, "PUT");
+                        });
+                    ui.add(egui::TextEdit::singleline(&mut self.request_host));
+                    let _ = ui.button("Send");
+                });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.request_tab, String::from("params"), "Parameters");
+                    ui.selectable_value(&mut self.request_tab, String::from("auth"), "Authorization");
+                    ui.selectable_value(&mut self.request_tab, String::from("headers"), "Headers");
+                    ui.selectable_value(&mut self.request_tab, String::from("body"), "Body");
+                });
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    Resize::default().resizable(true).show(ui, |ui| {
+                        ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut self.request_text));
+                    });
+                });
+                ui.add_space(10.);
             });
-        }
+            ui.label("adadad");
+        });
     }
 }
