@@ -33,6 +33,8 @@ pub enum RequestResult {
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Request {
+    pub name: String,
+    
     method: RequestMethod,
     
     host: String,
@@ -42,11 +44,12 @@ pub struct Request {
 
 impl Request {
     
-    pub fn new(method: RequestMethod, host: String, tab: RequestTab) -> Self {
+    pub fn new(name: String)-> Self {
         Self {
-            method,
-            host,
-            tab
+            name,
+            method: RequestMethod::Get,
+            host: String::new(),
+            tab: RequestTab::Parameters,
         }
     }
     

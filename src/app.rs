@@ -1,5 +1,7 @@
+use std::{vec, collections};
+
 use egui::{collapsing_header::CollapsingState, RichText};
-use egui::ScrollArea;
+use egui::{ScrollArea, Layout, TextEdit, Vec2};
 
 use crate::collection::Collection;
 use crate::request::{Request, RequestMethod, RequestTab};
@@ -8,26 +10,25 @@ use crate::request::{Request, RequestMethod, RequestTab};
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct LettersApp {
-    // Example stuff:
-    label: String,
-
-    // this how you opt-out of serialization of a member
     #[serde(skip)]
-    value: i32,
+    selected_collection: Option<usize>,
+    #[serde(skip)]
+    selected_request: Option<usize>,
     
-    request: Request,
+    #[serde(skip)]
+    new_collection_name: String,
     
-    collection: Collection,
+    #[serde(skip)]
+    collections: Vec<Collection>,
 }
 
 impl Default for LettersApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 0,
-            request: Request::new(RequestMethod::Get, String::from(""), RequestTab::Body),
-            collection: Collection::new(),
+            selected_collection: None,
+            selected_request: None,
+            new_collection_name: String::new(),
+            collections: vec![],
         }
     }
 }
@@ -66,27 +67,68 @@ impl eframe::App for LettersApp {
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Collections");
             ui.separator();
+            
+            ui.horizontal(|ui| {
+                ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("+").clicked() && !self.new_collection_name.trim().is_empty() {
+                        self.collections.push(Collection::new(self.new_collection_name.clone()));
+                    }
+                    ui.add(TextEdit::singleline(&mut self.new_collection_name).desired_width(ui.available_width()));
+                });
+            });
+            ui.separator();
             ScrollArea::vertical()
                 .show(ui, |ui| {
-                    for i in 0..100 {
-                        let id = ui.make_persistent_id(format!("my_collapsing_header_{i}"));
+                    for (i, collection) in self.collections.iter_mut().enumerate() {
+                        let id = ui.make_persistent_id(format!("collection_{}", collection.uuid.to_string()));
                         CollapsingState::load_with_default_open(ui.ctx(), id, false)
                             .show_header(ui, |ui| {
-                                let label = egui::SelectableLabel::new(self.value == i, i.to_string());
+                                let selected = if let Some(c) = self.selected_collection {
+                                    c == i
+                                } else {
+                                    false
+                                };
                                 
-                                if ui.add_sized(ui.available_size(), label).clicked() {
-                                    self.value = i;
-                                }
+                                let label = egui::SelectableLabel::new(selected, &collection.name);
+                                
+                                ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                                    if ui.button("+").clicked() {
+                                        collection.requests.push(Request::new("debug".to_string()));
+                                    }
+                                    if ui.add_sized(ui.available_size(), label).clicked() {
+                                        self.selected_collection = Some(i);
+                                        self.selected_request = None;
+                                    }
+                                });
                             })
-                            .body(|ui| ui.label("Body"));
+                            .body(|ui| {
+                               for (j, request) in collection.requests.iter().enumerate() {
+                                    let selected = if let Some(r) = self.selected_request {
+                                        r == j
+                                    } else {
+                                        false
+                                    };
+                                    let label = egui::SelectableLabel::new(selected, &request.name);
+                                    
+                                    if ui.add(label).clicked() {
+                                        self.selected_collection = Some(i);
+                                        self.selected_request = Some(j);
+                                    }
+                                } 
+                            });
                         ui.separator();
                     }
                 });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // self.request.render(ui);
-            self.collection.render(ui);
+            if let Some(c) = self.selected_collection {
+                if let Some(r) = self.selected_request {
+                    self.collections[c].requests[r].render(ui);
+                } else {
+                    self.collections[c].render(ui);
+                }
+            }
         });
     }
 }
