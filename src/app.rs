@@ -1,6 +1,7 @@
 use egui::{collapsing_header::CollapsingState, RichText};
 use egui::ScrollArea;
 
+use crate::collection::Collection;
 use crate::request::{Request, RequestMethod, RequestTab};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -15,6 +16,8 @@ pub struct LettersApp {
     value: i32,
     
     request: Request,
+    
+    collection: Collection,
 }
 
 impl Default for LettersApp {
@@ -24,6 +27,7 @@ impl Default for LettersApp {
             label: "Hello World!".to_owned(),
             value: 0,
             request: Request::new(RequestMethod::Get, String::from(""), RequestTab::Body),
+            collection: Collection::new(),
         }
     }
 }
@@ -81,7 +85,8 @@ impl eframe::App for LettersApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.request.render(ui);
+            // self.request.render(ui);
+            self.collection.render(ui);
         });
     }
 }

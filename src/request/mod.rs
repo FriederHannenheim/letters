@@ -56,7 +56,7 @@ impl Request {
             ui.add_space(10.);
 
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_source("ayy")
+                egui::ComboBox::from_id_source("request_method")
                     .selected_text(format!("{:?}", self.method))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut self.method, RequestMethod::Options, "OPTIONS");

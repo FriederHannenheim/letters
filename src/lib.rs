@@ -2,4 +2,6 @@
 
 mod app;
 mod request;
+mod collection;
+mod auth;
 pub use app::LettersApp;
