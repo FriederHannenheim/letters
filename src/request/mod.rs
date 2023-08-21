@@ -2,6 +2,8 @@ use egui::{Ui, Layout, Align};
 use serde::{Serialize, Deserialize};
 use egui::{TopBottomPanel, Resize};
 
+use crate::auth::{Auth, AuthorizationTab};
+
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub enum RequestMethod {
@@ -40,6 +42,8 @@ pub struct Request {
     host: String,
 
     tab: RequestTab,
+    
+    auth: AuthorizationTab,
 }
 
 impl Request {
@@ -50,12 +54,13 @@ impl Request {
             method: RequestMethod::Get,
             host: String::new(),
             tab: RequestTab::Parameters,
+            auth: AuthorizationTab::new(Auth::None, false),
         }
     }
     
     pub fn render(&mut self, ui: &mut Ui) {
         TopBottomPanel::top("request_top_panel").resizable(true).show_inside(ui, |ui| {
-            ui.heading("Request");
+            ui.text_edit_singleline(&mut self.name);
             ui.add_space(10.);
 
             ui.horizontal(|ui| {
@@ -83,7 +88,15 @@ impl Request {
                 ui.selectable_value(&mut self.tab, RequestTab::Headers, "Headers");
                 ui.selectable_value(&mut self.tab, RequestTab::Body, "Body");
             });
-            // requesttab logic
+            
+            match self.tab {
+                RequestTab::Parameters => {},
+                RequestTab::Authorization => {
+                    self.auth.render(ui);
+                }
+                _ => {}
+            }
+            
             ui.add_space(10.);
         });
         ui.label("adadad");

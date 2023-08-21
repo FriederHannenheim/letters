@@ -73,7 +73,7 @@ impl eframe::App for LettersApp {
                     if ui.button("+").clicked() && !self.new_collection_name.trim().is_empty() {
                         self.collections.push(Collection::new(self.new_collection_name.clone()));
                     }
-                    ui.add(TextEdit::singleline(&mut self.new_collection_name).desired_width(ui.available_width()));
+                    ui.add(TextEdit::singleline(&mut self.new_collection_name).hint_text("Collection Name").desired_width(ui.available_width()));
                 });
             });
             ui.separator();
@@ -93,7 +93,7 @@ impl eframe::App for LettersApp {
                                 
                                 ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button("+").clicked() {
-                                        collection.requests.push(Request::new("debug".to_string()));
+                                        collection.requests.push(Request::new("New Request".to_string()));
                                     }
                                     if ui.add_sized(ui.available_size(), label).clicked() {
                                         self.selected_collection = Some(i);
