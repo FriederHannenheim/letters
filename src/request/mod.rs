@@ -2,6 +2,8 @@ use egui::{Ui, Layout, Align};
 use serde::{Serialize, Deserialize};
 use egui::{TopBottomPanel, Resize};
 
+use uuid::Uuid;
+
 use crate::auth::{Auth, AuthorizationTab};
 
 
@@ -35,6 +37,7 @@ pub enum RequestResult {
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Request {
+    pub uuid: Uuid,
     pub name: String,
     
     method: RequestMethod,
@@ -50,6 +53,7 @@ impl Request {
     
     pub fn new(name: String)-> Self {
         Self {
+            uuid: Uuid::new_v4(),
             name,
             method: RequestMethod::Get,
             host: String::new(),
