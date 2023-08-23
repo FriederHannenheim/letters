@@ -7,7 +7,6 @@
 mod app;
 mod request;
 mod collection;
-mod auth;
-mod tab_viewer;
+mod tabs;
 
 pub use app::LettersApp;

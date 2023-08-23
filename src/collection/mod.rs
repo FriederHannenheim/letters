@@ -8,8 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::auth::Auth;
-use crate::auth::AuthorizationTab;
+use crate::tabs::auth::{Auth, AuthorizationTab};
 use crate::request::Request;
 
 

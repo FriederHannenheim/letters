@@ -4,11 +4,11 @@
 
 use egui::{Ui, Layout, Align};
 use serde::{Serialize, Deserialize};
-use egui::{TopBottomPanel, Resize};
+use egui::{TopBottomPanel};
 
 use uuid::Uuid;
 
-use crate::auth::{Auth, AuthorizationTab};
+use crate::tabs::auth::{Auth, AuthorizationTab};
 
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]

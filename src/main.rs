@@ -14,6 +14,6 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Letters",
         native_options,
-        Box::new(|cc| Box::new(eframe_template::LettersApp::new(cc))),
+        Box::new(|cc| Box::new(letters::LettersApp::new(cc))),
     )
 }

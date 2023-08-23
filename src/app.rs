@@ -2,18 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{vec, collections};
+use std::{vec};
 
 use egui::{collapsing_header::CollapsingState, RichText};
-use egui::{ScrollArea, Layout, TextEdit, Vec2};
+use egui::{ScrollArea, Layout, TextEdit};
 
 use egui_dock::{Tree, DockArea};
 
 use uuid::Uuid;
 
 use crate::collection::Collection;
-use crate::request::{Request, RequestMethod, RequestTab};
-use crate::tab_viewer::TabViewer;
+use crate::request::{Request};
+use crate::tabs::TabViewer;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]

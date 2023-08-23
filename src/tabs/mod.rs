@@ -2,12 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub mod auth;
+
 use egui::Ui;
 use serde::{Serialize, Deserialize};
 
 use uuid::Uuid;
 
-use crate::{collection::Collection, request::{Request, self}};
+use crate::{collection::Collection, request::{Request}};
 
 
 
