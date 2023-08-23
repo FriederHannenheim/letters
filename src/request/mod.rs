@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Frieder Hannenheim <frieder.hannenheim@pm.me>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use egui::{Ui, Layout, Align};
 use serde::{Serialize, Deserialize};
 use egui::{TopBottomPanel, Resize};
