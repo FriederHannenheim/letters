@@ -2,14 +2,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod tabs;
+
+use std::{collections::HashMap, cell::RefCell, rc::Rc};
+
 use egui::{Ui, Layout, Align};
 use serde::{Serialize, Deserialize};
 use egui::{TopBottomPanel};
 
 use uuid::Uuid;
 
-use crate::tabs::auth::{Auth, AuthorizationTab};
+use crate::{tabs::auth::Auth, collection::CollectionData};
+use crate::request::tabs::auth_tab::AuthorizationTab;
 
+use self::tabs::parameters_tab::ParametersTab;
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub enum RequestMethod {
@@ -19,6 +25,12 @@ pub enum RequestMethod {
     Post,
     Put,
     Patch
+}
+
+impl Default for RequestMethod {
+    fn default() -> Self {
+        Self::Get
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
@@ -39,30 +51,40 @@ pub enum RequestResult {
     }
 }
 
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct RequestData {
+    pub method: RequestMethod,
+    pub uri: String,
+    pub auth: HashMap<String, String>,
+    pub selected_auth: Auth,
+}
+
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Request {
     pub uuid: Uuid,
     pub name: String,
     
-    method: RequestMethod,
+    data: Rc<RefCell<RequestData>>,
+    collection_data: Rc<RefCell<CollectionData>>,
     
-    host: String,
-
     tab: RequestTab,
     
-    auth: AuthorizationTab,
+    auth_tab: AuthorizationTab,
+    params_tab: ParametersTab,
 }
 
 impl Request {
     
-    pub fn new(name: String)-> Self {
+    pub fn new(name: &str, collection_data: Rc<RefCell<CollectionData>>)-> Self {
+        let data = Rc::new(RefCell::new(Default::default()));
         Self {
             uuid: Uuid::new_v4(),
-            name,
-            method: RequestMethod::Get,
-            host: String::new(),
+            name: name.to_string(),
+            data: Rc::clone(&data),
+            collection_data,
             tab: RequestTab::Parameters,
-            auth: AuthorizationTab::new(Auth::None, false),
+            auth_tab: AuthorizationTab::new(Rc::clone(&data)),
+            params_tab: ParametersTab::new(Rc::clone(&data)),
         }
     }
     
@@ -73,18 +95,20 @@ impl Request {
 
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_source("request_method")
-                    .selected_text(format!("{:?}", self.method))
+                    .selected_text(format!("{:?}", self.data.borrow_mut().method))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.method, RequestMethod::Options, "OPTIONS");
-                        ui.selectable_value(&mut self.method, RequestMethod::Head, "HEAD");
-                        ui.selectable_value(&mut self.method, RequestMethod::Get, "GET");
-                        ui.selectable_value(&mut self.method, RequestMethod::Patch, "PATCH");
-                        ui.selectable_value(&mut self.method, RequestMethod::Post, "POST");
-                        ui.selectable_value(&mut self.method, RequestMethod::Put, "PUT");
+                        let method = &mut self.data.borrow_mut().method;
+                        ui.selectable_value(method, RequestMethod::Options, "OPTIONS");
+                        ui.selectable_value(method, RequestMethod::Head, "HEAD");
+                        ui.selectable_value(method, RequestMethod::Get, "GET");
+                        ui.selectable_value(method, RequestMethod::Patch, "PATCH");
+                        ui.selectable_value(method, RequestMethod::Post, "POST");
+                        ui.selectable_value(method, RequestMethod::Put, "PUT");
                     });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let _ = ui.button("Send");
-                    let mut host_bar = egui::TextEdit::singleline(&mut self.host);
+                    let host = &mut self.data.borrow_mut().uri;
+                    let mut host_bar = egui::TextEdit::singleline(host);
                     host_bar = host_bar.desired_width(ui.available_width());
                     ui.add(host_bar);
                 });
@@ -98,9 +122,11 @@ impl Request {
             });
             
             match self.tab {
-                RequestTab::Parameters => {},
+                RequestTab::Parameters => {
+                    self.params_tab.render(ui);
+                },
                 RequestTab::Authorization => {
-                    self.auth.render(ui);
+                    self.auth_tab.render(ui);
                 }
                 _ => {}
             }

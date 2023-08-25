@@ -26,6 +26,8 @@ serde = { version = "1", features = ["derive"] }
 base64-url = "2.0.0"
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "serde"] }
 egui_dock = { version = "0.6.3", features = ["serde"] }
+egui_extras = { version = "0.22.0", default-features = false }
+http = "0.2.9"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

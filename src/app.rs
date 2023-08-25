@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{vec};
 
 use egui::{collapsing_header::CollapsingState, RichText};
@@ -12,7 +14,6 @@ use egui_dock::{Tree, DockArea};
 use uuid::Uuid;
 
 use crate::collection::Collection;
-use crate::request::{Request};
 use crate::tabs::TabViewer;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -28,22 +29,25 @@ pub struct LettersApp {
     new_collection_name: String,
  
     #[serde(skip)]
-    collections: Vec<Collection>,
+    collections: Rc<RefCell<Vec<Collection>>>,
     
+    #[serde(skip)]
     tree: Tree<Uuid>,
     
+    #[serde(skip)]
     tab_viewer: TabViewer,
 }
 
 impl Default for LettersApp {
     fn default() -> Self {
+        let collections = Rc::new(RefCell::new(vec![]));
         Self {
             selected_collection: None,
             selected_request: None,
             new_collection_name: String::new(),
-            collections: vec![],
+            collections: Rc::clone(&collections),
             tree: Tree::new(vec![]),
-            tab_viewer: Default::default(),
+            tab_viewer: TabViewer::new(Rc::clone(&collections)),
         }
     }
 }
@@ -86,15 +90,21 @@ impl eframe::App for LettersApp {
             ui.horizontal(|ui| {
                 ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("+").clicked() && !self.new_collection_name.trim().is_empty() {
-                        self.collections.push(Collection::new(self.new_collection_name.clone()));
+                        self.collections.borrow_mut().push(Collection::new(self.new_collection_name.clone()));
+                        self.new_collection_name = String::new();
                     }
-                    ui.add(TextEdit::singleline(&mut self.new_collection_name).hint_text("Collection Name").desired_width(ui.available_width()));
+                    let collection_entry = TextEdit::singleline(&mut self.new_collection_name).hint_text("Collection Name").desired_width(ui.available_width());
+                    let response = ui.add(collection_entry);
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        self.collections.borrow_mut().push(Collection::new(self.new_collection_name.clone()));
+                        self.new_collection_name = String::new();
+                    }
                 });
             });
             ui.separator();
             ScrollArea::vertical()
                 .show(ui, |ui| {
-                    for (i, collection) in self.collections.iter_mut().enumerate() {
+                    for (i, collection) in self.collections.borrow_mut().iter_mut().enumerate() {
                         let id = ui.make_persistent_id(format!("collection_{}", collection.uuid.to_string()));
                         CollapsingState::load_with_default_open(ui.ctx(), id, false)
                             .show_header(ui, |ui| {
@@ -108,11 +118,15 @@ impl eframe::App for LettersApp {
                                 
                                 ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button("+").clicked() {
-                                        collection.requests.push(Request::new("New Request".to_string()));
+                                        collection.create_request("New Request");
                                     }
                                     if ui.add_sized(ui.available_size(), label).clicked() {
-                                        self.tab_viewer.collections.push(collection.clone());
-                                        self.tree.push_to_focused_leaf(collection.uuid);
+                                        if let Some((node, tab)) = self.tree.find_tab(&collection.uuid) {
+                                            self.tree.set_focused_node(node);
+                                            self.tree.set_active_tab(node, tab)
+                                        } else {
+                                            self.tree.push_to_focused_leaf(collection.uuid);
+                                        }
                                         
                                         self.selected_collection = Some(i);
                                         self.selected_request = None;
@@ -129,7 +143,7 @@ impl eframe::App for LettersApp {
                                     let label = egui::SelectableLabel::new(selected, &request.name);
                                     
                                     if ui.add(label).clicked() {
-                                        self.tab_viewer.requests.push(request.clone());
+                                        self.tab_viewer.requests.insert(request.uuid, request.clone());
                                         self.tree.push_to_focused_leaf(request.uuid);
                                         
                                         self.selected_collection = Some(i);

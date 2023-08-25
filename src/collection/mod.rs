@@ -2,19 +2,29 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use egui::Ui;
 use egui::TopBottomPanel;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::tabs::auth::{Auth, AuthorizationTab};
+use crate::tabs::auth::Auth;
 use crate::request::Request;
 
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum CollectionTab {
     Auth
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+pub struct CollectionData {
+    pub selected_auth: Auth,
+    pub credentials: HashMap<String, String>,
 }
 
 
@@ -24,9 +34,9 @@ pub struct Collection {
     pub name: String,
     pub requests: Vec<Request>,
     
-    auth: AuthorizationTab,
-    tab: CollectionTab,
+    data: Rc<RefCell<CollectionData>>,
     
+    tab: CollectionTab,
 }
 
 impl Collection {
@@ -35,14 +45,14 @@ impl Collection {
         Self {
             uuid: Uuid::new_v4(),
             name,
-            auth: AuthorizationTab::new(Auth::None, true),
-            tab: CollectionTab::Auth,
             requests: vec![],
+            data: Rc::new(RefCell::new(Default::default())),
+            tab: CollectionTab::Auth,
         }
     }
     
     pub fn render(&mut self, ui: &mut Ui) {
-        TopBottomPanel::top("collection_top_panel").resizable(true).show_inside(ui, |ui| {
+        TopBottomPanel::top(format!("collection_top_panel_{}", self.uuid)).resizable(true).show_inside(ui, |ui| {
             ui.heading(&self.name);
             ui.add_space(10.);
             
@@ -53,11 +63,14 @@ impl Collection {
             
             match &self.tab {
                 CollectionTab::Auth => {
-                    self.auth.render(ui);
                 }
             }
             ui.add_space(10.)
         });
+    }
+    
+    pub fn create_request(&mut self, name: &str) {
+        self.requests.push(Request::new(name, Rc::clone(&self.data)))
     }
 }
 
