@@ -28,7 +28,7 @@ pub struct CollectionData {
 }
 
 
-#[derive(Serialize, Debug, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub struct Collection {
     pub uuid: Uuid,
     pub name: String,

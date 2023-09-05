@@ -106,7 +106,7 @@ impl eframe::App for LettersApp {
                 .show(ui, |ui| {
                     for (i, collection) in self.collections.borrow_mut().iter_mut().enumerate() {
                         let id = ui.make_persistent_id(format!("collection_{}", collection.uuid.to_string()));
-                        CollapsingState::load_with_default_open(ui.ctx(), id, false)
+                        CollapsingState::load_with_default_open(ui.ctx(), id, true)
                             .show_header(ui, |ui| {
                                 let selected = if let Some(c) = self.selected_collection {
                                     c == i

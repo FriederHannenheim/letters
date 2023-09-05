@@ -16,7 +16,7 @@ use crate::{collection::Collection, request::{Request}};
 
 
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct TabViewer {
     pub collections: Rc<RefCell<Vec<Collection>>>,
     
@@ -62,5 +62,9 @@ impl egui_dock::TabViewer for TabViewer {
         };
         
         name.into()
+    }
+
+    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
+        egui::Id::new(tab)
     }
 }

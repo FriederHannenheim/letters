@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Frieder Hannenheim <frieder.hannenheim@pm.me>
+//
+// SPDX-License-Identifier: AGPL-3-or-later
+
 use egui::Ui;
 use serde::{Serialize, Deserialize};
 use std::{rc::Rc, cell::RefCell};
@@ -10,6 +14,7 @@ pub struct AuthorizationTab {
     request_data: Rc<RefCell<RequestData>>,
 }
 
+// TODO: Edit headers with authorization
 impl AuthorizationTab {
     pub fn new(request_data: Rc<RefCell<RequestData>>) -> Self {
         Self {

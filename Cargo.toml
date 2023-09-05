@@ -27,7 +27,11 @@ base64-url = "2.0.0"
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "serde"] }
 egui_dock = { version = "0.6.3", features = ["serde"] }
 egui_extras = { version = "0.22.0", default-features = false }
-http = "0.2.9"
+url = { version = "2.4.1", features = ["serde"] }
+url-escape = "0.1.1"
+poll-promise = "0.3.0"
+ehttp = "0.3.0"
+percent-encoding = "2.3.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
