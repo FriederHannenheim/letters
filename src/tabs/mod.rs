@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 
 use uuid::Uuid;
 
-use crate::{collection::Collection, request::{Request}};
+use crate::{collection::Collection, request::Request};
 
 
 
@@ -38,15 +38,23 @@ impl egui_dock::TabViewer for TabViewer {
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
         let mut collections = self.collections.borrow_mut();
         let collection = collections.iter_mut().find(|c| &c.uuid == tab);
-       let request = self.requests.get_mut(tab);
+        let request = self.requests.get_mut(tab);
        
-       if let Some(collection) = collection {
-           collection.render(ui);
-       }
+        if let Some(collection) = collection {
+            collection.render(ui);
+        }
        
-       if let Some(request) = request {
-           request.render(ui);
-       }
+        if let Some(request) = request {
+            if request.do_save() {
+                println!("SÖVE");
+                for collection in collections.iter_mut() {
+                    if let Some(collection_request) = collection.requests.iter_mut().find(|cr| cr.uuid == request.uuid) {
+                        *collection_request = request.clone();
+                    }
+                };
+            }
+            request.render(ui);
+        }
     }
     
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
@@ -56,7 +64,12 @@ impl egui_dock::TabViewer for TabViewer {
         
         let Some(name) = 
              collection.map(|c| c.name.clone())
-             .or(request.map(|r| r.name.clone())) 
+             .or(request.map(|r| {
+                    match r.changed_since_save() {
+                        true => format!("*{}", r.name()),
+                        false => r.name()
+                    }
+                })) 
          else {
             panic!("Tab has invalid uuid");
         };
@@ -66,5 +79,10 @@ impl egui_dock::TabViewer for TabViewer {
 
     fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
         egui::Id::new(tab)
+    }
+
+    fn on_close(&mut self, tab: &mut Self::Tab) -> bool {
+        self.requests.remove(tab);
+        true
     }
 }

@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::tabs::auth::Auth;
+use crate::tabs::auth::AuthType;
 use crate::request::Request;
 
 
@@ -23,7 +23,7 @@ enum CollectionTab {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub struct CollectionData {
-    pub selected_auth: Auth,
+    pub selected_auth: AuthType,
     pub credentials: HashMap<String, String>,
 }
 
@@ -40,7 +40,7 @@ pub struct Collection {
 }
 
 impl Collection {
-    
+    // TODO: Implement auth and variables
     pub fn new(name: String) -> Self {
         Self {
             uuid: Uuid::new_v4(),

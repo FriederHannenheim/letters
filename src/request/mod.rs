@@ -4,10 +4,15 @@
 
 mod tabs;
 
+use std::collections::BTreeMap;
+use std::collections::hash_map::DefaultHasher;
+use std::default;
+use std::hash::{Hasher, Hash};
+use std::ops::DerefMut;
 use std::{collections::HashMap, cell::RefCell, rc::Rc};
 
 use egui::collapsing_header::HeaderResponse;
-use egui::{Ui, Layout, Align};
+use egui::{Ui, Layout, Align, TextEdit, TextBuffer, ScrollArea, Button};
 
 use serde::{Serialize, Deserialize};
 use egui::{TopBottomPanel};
@@ -17,12 +22,15 @@ use uuid::Uuid;
 use poll_promise::Promise;
 use ehttp;
 
-use crate::{tabs::auth::Auth, collection::CollectionData};
+use crate::tabs::auth::AuthData;
+use crate::{tabs::auth::AuthType, collection::CollectionData};
 use crate::request::tabs::auth_tab::AuthorizationTab;
 
+use self::tabs::body_tab::{BodyType, BodyData, BodyTab};
+use self::tabs::headers_tab::HeadersTab;
 use self::tabs::parameters_tab::ParametersTab;
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone, Hash)]
 pub enum RequestMethod {
     Options,
     Head,
@@ -69,20 +77,42 @@ pub enum RequestResult {
     }
 }
 
-// TODO: Url gets own field url::Url and is updated with updates to url
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct RequestData {
+    pub name: String,
+    pub changed: bool,
+    
     pub method: RequestMethod,
     pub url_string: String,
+    pub headers: Vec<(String, String)>,
     
-    pub auth: HashMap<String, String>,
-    pub selected_auth: Auth,
+    pub auth: BTreeMap<AuthType, AuthData>,
+    pub selected_auth: AuthType,
+    
+    pub body: BTreeMap<BodyType, BodyData>,
+    pub selected_body: BodyType,
 }
 
+impl Default for RequestData {
+    fn default() -> Self {
+        Self {
+            name: String::from("New Request"),
+            changed: false,
+            method: Default::default(),
+            url_string: String::new(),
+            headers: vec![],
+            auth: Default::default(),
+            selected_auth: Default::default(),
+            body: Default::default(),
+            selected_body: Default::default(),
+        }
+    }
+}
+
+// TODO: Move name to RequestData and have RequestData.changed = true if the data has been modified since the last save
 #[derive(Serialize, Deserialize)]
 pub struct Request {
     pub uuid: Uuid,
-    pub name: String,
     
     data: Rc<RefCell<RequestData>>,
     collection_data: Rc<RefCell<CollectionData>>,
@@ -94,6 +124,11 @@ pub struct Request {
     
     auth_tab: AuthorizationTab,
     params_tab: ParametersTab,
+    headers_tab: HeadersTab,
+    body_tab: BodyTab,
+    
+    pub wants_save: bool,
+    pub saved_data_hash: Option<u64>,
 }
 
 impl PartialEq for Request {
@@ -106,15 +141,21 @@ impl Eq for Request {}
 
 impl Clone for Request {
     fn clone(&self) -> Self {
+        let data = self.data.borrow().clone();
+        
         Self {
             uuid: self.uuid,
-            name: self.name.clone(),
-            data: Rc::clone(&self.data),
+            // We don't want to clone the reference, but the data
+            data: Rc::new(RefCell::new(data)),
             collection_data: Rc::clone(&self.collection_data),
             promise: None,
             tab: self.tab.clone(),
             auth_tab: self.auth_tab.clone(),
             params_tab: self.params_tab.clone(),
+            headers_tab: self.headers_tab.clone(),
+            body_tab: self.body_tab.clone(),
+            wants_save: false,
+            saved_data_hash: None,
         }
     }
 }
@@ -125,20 +166,37 @@ impl Request {
         let data = Rc::new(RefCell::new(Default::default()));
         Self {
             uuid: Uuid::new_v4(),
-            name: name.to_string(),
             data: Rc::clone(&data),
             collection_data,
             promise: Default::default(),
             tab: RequestTab::Parameters,
             auth_tab: AuthorizationTab::new(Rc::clone(&data)),
             params_tab: ParametersTab::new(Rc::clone(&data)),
+            headers_tab: HeadersTab::new(Rc::clone(&data)),
+            body_tab: BodyTab::new(Rc::clone(&data)),
+            wants_save: false,
+            saved_data_hash: None,
         }
+    }
+    
+    pub fn duplicate(&self) -> Self {
+        let mut cloned = self.clone();
+        cloned.uuid = Uuid::new_v4();
+        cloned
     }
     
     pub fn render(&mut self, ui: &mut Ui) {
         let mut uri_changed = false;
-        TopBottomPanel::top("request_top_panel").resizable(true).show_inside(ui, |ui| {
-            ui.text_edit_singleline(&mut self.name);
+        TopBottomPanel::top(format!("request_top_panel_{}", &self.uuid)).resizable(true).show_inside(ui, |ui| {
+            ui.horizontal(|ui| {
+                let name = &mut self.data.borrow_mut().name;
+                ui.text_edit_singleline(name);
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    if ui.button("Save").clicked() {
+                        self.wants_save = true;
+                    }
+                });
+            });
             ui.add_space(10.);
 
             ui.horizontal(|ui| {
@@ -159,8 +217,9 @@ impl Request {
                         self.send_request(&resp.ctx);
                     }
                     let host = &mut self.data.borrow_mut().url_string;
-                    let mut host_bar = egui::TextEdit::singleline(host);
-                    host_bar = host_bar.desired_width(ui.available_width());
+                    let host_bar = egui::TextEdit::singleline(host)
+                                                            .hint_text("https://...")
+                                                            .desired_width(ui.available_width());
                     uri_changed |= ui.add(host_bar).changed();
                 });
             });
@@ -171,6 +230,7 @@ impl Request {
                 ui.selectable_value(&mut self.tab, RequestTab::Headers, "Headers");
                 ui.selectable_value(&mut self.tab, RequestTab::Body, "Body");
             });
+            ui.add_space(5.);
             
             match self.tab {
                 RequestTab::Parameters => {
@@ -178,19 +238,37 @@ impl Request {
                 },
                 RequestTab::Authorization => {
                     self.auth_tab.render(ui);
+                },
+                RequestTab::Headers => {
+                    self.headers_tab.render(ui);
+                },
+                RequestTab::Body => {
+                    self.body_tab.render(ui);
                 }
-                _ => {}
             }
             
             ui.add_space(10.);
         });
         if let Some(promise) = &mut self.promise {
-            if let Some(result) = promise.ready_mut() {
-                let response_text = match result {
+            if let Some(result) = promise.ready() {
+                let mut response_text = match result {
                     Ok(s) => s,
                     Err(s) => s,
-                };
-                ui.text_edit_multiline(response_text);
+                }.as_str();
+                let textedit = TextEdit::multiline(&mut response_text)
+                    .code_editor();
+                ScrollArea::horizontal().show(ui, |ui| {
+                    ui.add_sized(ui.available_size(), textedit);
+                });
+            } else {
+                // TODO: Loading screen
+                ui.horizontal_centered(|ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.label("Waiting for a Response...");
+                        ui.add_space(5.);
+                        ui.spinner();
+                    })
+                });
             }
         }
         if uri_changed {
@@ -198,8 +276,44 @@ impl Request {
         }
     }
     
+    pub fn name(&self) -> String {
+        self.data.borrow_mut().name.clone()
+    }
+    
+    /// Checks if we want to save and marks the saved data as unchanged if we do
+    pub fn do_save(&mut self) -> bool {
+        // Return early if we don't actually want to save
+        if !std::mem::replace(&mut self.wants_save, false) {
+            return false;
+        }
+        
+        let data = self.data.borrow();
+        let mut hasher = DefaultHasher::new();
+        data.hash(&mut hasher);
+        self.saved_data_hash = Some(hasher.finish());
+        
+        true
+    }
+    
+    pub fn changed_since_save(&self) -> bool {
+        let Some(saved_hash) = self.saved_data_hash else {
+            return true;
+        };
+        
+        let data = self.data.borrow();
+        let mut hasher = DefaultHasher::new();
+        data.hash(&mut hasher);
+        
+        saved_hash != hasher.finish()
+    }
+    
     fn send_request(&mut self, ctx: &egui::Context) {
         let request_data = self.data.borrow_mut();
+        
+        let mut headers = BTreeMap::new();
+        for (key, value) in request_data.headers.clone() {
+            headers.insert(key, value);
+        }
         
         let ctx = ctx.clone();
         let (sender, promise) = Promise::new();
@@ -207,7 +321,7 @@ impl Request {
             method: request_data.method.to_string(),
             url: request_data.url_string.clone(),
             body: vec![],
-            headers: Default::default(),
+            headers,
         };
         ehttp::fetch(request, move |response| {
             ctx.request_repaint(); // wake up UI thread

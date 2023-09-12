@@ -7,9 +7,9 @@ use std::rc::Rc;
 use std::{vec};
 
 use egui::{collapsing_header::CollapsingState, RichText};
-use egui::{ScrollArea, Layout, TextEdit};
+use egui::{ScrollArea, Layout, TextEdit, Stroke, Rounding};
 
-use egui_dock::{Tree, DockArea};
+use egui_dock::{DockArea, DockState, Style, TabStyle};
 
 use uuid::Uuid;
 
@@ -32,7 +32,7 @@ pub struct LettersApp {
     collections: Rc<RefCell<Vec<Collection>>>,
     
     #[serde(skip)]
-    tree: Tree<Uuid>,
+    dock_state: DockState<Uuid>,
     
     #[serde(skip)]
     tab_viewer: TabViewer,
@@ -46,12 +46,15 @@ impl Default for LettersApp {
             selected_request: None,
             new_collection_name: String::new(),
             collections: Rc::clone(&collections),
-            tree: Tree::new(vec![]),
+            dock_state: DockState::new(vec![]),
             tab_viewer: TabViewer::new(Rc::clone(&collections)),
         }
     }
 }
 
+// TODO: Delete Collection
+// TODO: Free-Standing Requests
+// TODO: Global ctrl+s shortcut
 impl LettersApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -77,6 +80,8 @@ impl eframe::App for LettersApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let mut delete_request = None;
+        
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.add_space(8.);
             ui.heading(RichText::new("Letters").size(20.).strong());
@@ -121,11 +126,10 @@ impl eframe::App for LettersApp {
                                         collection.create_request("New Request");
                                     }
                                     if ui.add_sized(ui.available_size(), label).clicked() {
-                                        if let Some((node, tab)) = self.tree.find_tab(&collection.uuid) {
-                                            self.tree.set_focused_node(node);
-                                            self.tree.set_active_tab(node, tab)
+                                        if let Some(tab_location) = self.dock_state.find_tab(&collection.uuid) {
+                                            self.dock_state.set_active_tab(tab_location);
                                         } else {
-                                            self.tree.push_to_focused_leaf(collection.uuid);
+                                            self.dock_state.push_to_focused_leaf(collection.uuid);
                                         }
                                         
                                         self.selected_collection = Some(i);
@@ -140,25 +144,74 @@ impl eframe::App for LettersApp {
                                     } else {
                                         false
                                     };
-                                    let label = egui::SelectableLabel::new(selected, &request.name);
+                                    let label = egui::SelectableLabel::new(selected, request.name());
                                     
-                                    if ui.add(label).clicked() {
-                                        self.tab_viewer.requests.insert(request.uuid, request.clone());
-                                        self.tree.push_to_focused_leaf(request.uuid);
+                                    let resp = ui.add(label);
+                                    if resp.clicked() {
+                                        if let Some(tab_location) = self.dock_state.find_tab(&request.uuid) {
+                                            self.dock_state.set_active_tab(tab_location);
+                                        } else {
+                                            self.tab_viewer.requests.insert(request.uuid, request.clone());
+                                            self.dock_state.push_to_focused_leaf(request.uuid);
+                                        }
+                                        
                                         
                                         self.selected_collection = Some(i);
                                         self.selected_request = Some(j);
                                     }
+                                    resp.context_menu(|ui| {
+                                        if ui.button("Duplicate Request").clicked() {
+                                            // TODO: Implement Duplicating Tabs
+                                            let new_request = request.duplicate();
+                                            let uuid = new_request.uuid.clone();
+                                            self.tab_viewer.requests.insert(uuid, new_request);
+                                            self.dock_state.push_to_focused_leaf(uuid);
+                                            
+                                            ui.close_menu();
+                                        }
+                                        if ui.button("Delete").clicked() {
+                                            if let Some(tab_location) = self.dock_state.find_tab(&request.uuid) {
+                                                self.dock_state.remove_tab(tab_location);
+                                            }
+                                            self.tab_viewer.requests.remove(&request.uuid);
+                                            delete_request = Some((i, j));
+                                            
+                                            ui.close_menu();
+                                        }
+                                    });
                                 } 
                             });
                         ui.separator();
                     }
                 });
         });
+        
+        let mut dock_style = Style::from_egui(&ctx.style());
+        dock_style.main_surface_border_stroke = Stroke::NONE;
+        dock_style.main_surface_border_rounding = Rounding::none();
+        
+        dock_style.tab.tab_body.stroke = Stroke::NONE;
+        dock_style.tab_bar.rounding = Rounding::none();
+        
+        dock_style.tab.active.rounding = Rounding::none();
+        dock_style.tab.active.outline_color = dock_style.tab.active.bg_fill;
+        
+        dock_style.tab.inactive.rounding = Rounding::none();
+        dock_style.tab.inactive.outline_color = dock_style.tab.inactive.bg_fill;
+        
+        dock_style.tab.focused.rounding = Rounding::none();
+        dock_style.tab.focused.outline_color = dock_style.tab.focused.bg_fill;
+        
+        dock_style.tab.hovered.rounding = Rounding::none();
+        dock_style.tab.focused.outline_color = dock_style.tab.focused.bg_fill;
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            DockArea::new(&mut self.tree)
-                .show_inside(ui, &mut self.tab_viewer);
-        });
+
+        DockArea::new(&mut self.dock_state)
+            .style(dock_style)
+            .show(ctx, &mut self.tab_viewer);
+        
+        if let Some((collection_index, request_index)) = delete_request {
+            self.tab_viewer.collections.borrow_mut()[collection_index].requests.remove(request_index);
+        }
     }
 }

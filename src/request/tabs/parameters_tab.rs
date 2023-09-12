@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2023 Frieder Hannenheim <frieder.hannenheim@pm.me>
 //
-// SPDX-License-Identifier: AGPL-3-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{rc::Rc, cell::RefCell};
 
@@ -22,7 +22,6 @@ pub struct ParametersTab {
     parameters: Vec<(String, String)>,
     
     new_param: (String, String),
-    remove_param: Option<usize>,
 }
 
 impl ParametersTab {
@@ -31,12 +30,12 @@ impl ParametersTab {
             request_data,
             parameters: vec![],
             new_param: (String::new(), String::new()),
-            remove_param: None,
         }
     }
     
     pub fn render(&mut self, ui: &mut Ui) {
         let mut params_changed = false;
+        let mut remove_param = None;
         // TODO: Figure out how to have the rows distributed so that the x is small. Maybe replace table with Grid
         TableBuilder::new(ui)
             .column(Column::initial(128.).resizable(true))
@@ -55,7 +54,7 @@ impl ParametersTab {
                         });
                         row.col(|ui| {
                             if ui.button("x").clicked() {
-                                self.remove_param = Some(i);
+                                remove_param = Some(i);
                             }
                         });
                     });
@@ -75,10 +74,8 @@ impl ParametersTab {
                     });
                 });
             });
-        if let Some(i) = self.remove_param {
+        if let Some(i) = remove_param {
             self.parameters.remove(i);
-            self.remove_param = None;
-            
             params_changed = true;
         }
         if params_changed {

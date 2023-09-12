@@ -25,7 +25,7 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 base64-url = "2.0.0"
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "serde"] }
-egui_dock = { version = "0.6.3", features = ["serde"] }
+egui_dock = { git = "https://github.com/Adanos020/egui_dock.git", branch = "release-0.7", features = ["serde"] }
 egui_extras = { version = "0.22.0", default-features = false }
 url = { version = "2.4.1", features = ["serde"] }
 url-escape = "0.1.1"

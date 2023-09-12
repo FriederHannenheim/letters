@@ -2,45 +2,92 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 
 use egui::{Ui, TextEdit};
 use serde::{Serialize, Deserialize};
+use base64_url;
 
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Auth {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AuthType {
     None,
     Inherit,
     Basic,
     Bearer,
 }
 
-impl Default for Auth {
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum AuthData {
+    None,
+    Basic {
+        username: String,
+        password: String,
+    },
+    Bearer {
+        token: String,
+    }
+}
+impl Default for AuthData {
     fn default() -> Self {
         Self::None
     }
 }
-impl Auth {    
-    pub fn render(&self, credentials: &mut HashMap<String,String>, ui: &mut Ui) {
+
+impl AuthData {
+    pub fn to_header(&self) -> String {
         match self {
-            Auth::None | Auth::Inherit => {},
-            Auth::Basic => {
+            AuthData::None => panic!("None AuthData cannot be converted to header"),
+            AuthData::Basic { username, password } => {
+                let cred = format!("{}:{}", username, password);
+                base64_url::encode(&cred)
+            },
+            AuthData::Bearer { token } => format!("Bearer {}", token),
+        }
+    }
+    fn get_type(&self) -> AuthType {
+        match self {
+            Self::None => AuthType::None,
+            Self::Basic {..} => AuthType::Basic,
+            Self::Bearer {..} => AuthType::Bearer,
+        }
+    }
+    fn default_from_type(auth_type: &AuthType) -> Self {
+        match auth_type {
+            AuthType::None | AuthType::Inherit => Self::None,
+            AuthType::Basic => Self::Basic { username: String::new(), password: String::new() },
+            AuthType::Bearer => Self::Bearer { token: String::new() },
+        }
+    }
+}
+
+impl Default for AuthType {
+    fn default() -> Self {
+        Self::None
+    }
+}
+impl AuthType {    
+    pub fn render(&self, credentials: &mut BTreeMap<AuthType, AuthData>, ui: &mut Ui) {
+        match credentials.entry(self.clone()).or_insert(AuthData::default_from_type(&self)) {
+            AuthData::None => {},
+            AuthData::Basic {username, password} => {
                 ui.horizontal(|ui: &mut Ui| {
                     ui.label("Username");
-                    ui.text_edit_singleline(credentials.entry("basic_username".to_string()).or_default());
+                    ui.text_edit_singleline(username);
                 });
                 ui.horizontal(|ui: &mut Ui| {
                     ui.label("Password");
-                    let password_entry = TextEdit::singleline(credentials.entry("basic_password".to_string()).or_default()).password(true);
+                    // TODO: Maybe custom widget with hide/show password
+                    let password_entry = TextEdit::singleline(password).password(true);
                     ui.add(password_entry);
                 });
             },
-            Auth::Bearer => {
+            AuthData::Bearer {token} => {
                 ui.horizontal(|ui: &mut Ui| {
                     ui.label("Token");
-                    let token_entry = TextEdit::singleline(credentials.entry("bearer_token".to_string()).or_default()).password(true);
+                    let token_entry = TextEdit::singleline(token).password(true);
                     ui.add(token_entry);
                 });
             }
@@ -48,7 +95,7 @@ impl Auth {
     }
 }
 
-impl ToString for Auth {
+impl ToString for AuthType {
     fn to_string(&self) -> String {
         match self {
             Self::None => "None",
