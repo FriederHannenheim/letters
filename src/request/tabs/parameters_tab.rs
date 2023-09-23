@@ -12,28 +12,75 @@ use serde::{Serialize, Deserialize};
 use url::Url;
 use percent_encoding;
 
-use crate::request::RequestData;
+use crate::{request::{RequestData, self}, tabs::Tab};
 
 
-
+// TODO: Paremeters broke
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ParametersTab {
-    request_data: Rc<RefCell<RequestData>>,
     parameters: Vec<(String, String)>,
-    
     new_param: (String, String),
 }
 
 impl ParametersTab {
-    pub fn new(request_data: Rc<RefCell<RequestData>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            request_data,
             parameters: vec![],
             new_param: (String::new(), String::new()),
         }
     }
     
-    pub fn render(&mut self, ui: &mut Ui) {
+    fn update_new_param(&mut self) -> bool{
+        if self.new_param.0.is_empty() && self.new_param.1.is_empty() {
+            return false;
+        }
+        let param = std::mem::replace(&mut self.new_param, (String::new(), String::new()));
+        self.parameters.push(param);
+        true
+    }
+    
+    fn update_url_from_params(&mut self, request_data: &mut RequestData) {
+        let mut url_parts: Vec<String> = Vec::new();
+        
+        for (param_name, param_value) in &self.parameters {
+            let encoded_name = percent_encoding::percent_encode(param_name.as_bytes(), percent_encoding::NON_ALPHANUMERIC);
+            let encoded_value = percent_encoding::percent_encode(param_value.as_bytes(), percent_encoding::NON_ALPHANUMERIC).collect::<String>();
+            if encoded_value.is_empty() {
+                url_parts.push(format!("{}", encoded_name));
+            } else {
+                url_parts.push(format!("{}={}", encoded_name, encoded_value));
+            }
+        }
+    
+        let url = &mut request_data.url_string;
+        let base_url = get_base_url(&url);
+        println!("Url Parts: {}", url_parts.len());
+        let new_url = if url_parts.is_empty() {
+            base_url.to_string()
+        } else {
+            format!("{}?{}", base_url, url_parts.join("&"))
+        };
+        println!("New url: {}", &new_url);
+        *url = new_url;
+    }
+    
+    pub fn url_to_params(&mut self, request_data: &mut RequestData) {
+        let url = &request_data.url_string;
+        self.parameters = url::Url::options()
+                    .parse(&url)
+                    .map(|u| {
+                        u.query_pairs()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_else(|_| vec![]);
+    }
+}
+
+impl Tab for ParametersTab {
+    type T = RequestData;
+        
+    fn render(&mut self, ui: &mut Ui, request_data: &mut Self::T) {
         let mut params_changed = false;
         let mut remove_param = None;
         // TODO: Figure out how to have the rows distributed so that the x is small. Maybe replace table with Grid
@@ -81,53 +128,10 @@ impl ParametersTab {
         if params_changed {
             // remove empty pairs
             self.parameters.retain(|e| !(e.0.is_empty() && e.1.is_empty()));
-            self.update_url_from_params();
+            self.update_url_from_params(request_data);
         }
     }
     
-    fn update_new_param(&mut self) -> bool{
-        if self.new_param.0.is_empty() && self.new_param.1.is_empty() {
-            return false;
-        }
-        let param = std::mem::replace(&mut self.new_param, (String::new(), String::new()));
-        self.parameters.push(param);
-        true
-    }
-    
-    fn update_url_from_params(&mut self) {
-        let mut url_parts: Vec<String> = Vec::new();
-        
-        for (param_name, param_value) in &self.parameters {
-            let encoded_name = percent_encoding::percent_encode(param_name.as_bytes(), percent_encoding::NON_ALPHANUMERIC);
-            let encoded_value = percent_encoding::percent_encode(param_value.as_bytes(), percent_encoding::NON_ALPHANUMERIC).collect::<String>();
-            if encoded_value.is_empty() {
-                url_parts.push(format!("{}", encoded_name));
-            } else {
-                url_parts.push(format!("{}={}", encoded_name, encoded_value));
-            }
-        }
-    
-        let url = &mut self.request_data.borrow_mut().url_string;
-        let base_url = get_base_url(&url);
-        let new_url = if url_parts.is_empty() {
-            base_url.to_string()
-        } else {
-            format!("{}?{}", get_base_url(&url), url_parts.join("&"))
-        };
-        *url = new_url;
-    }
-    
-    pub fn url_to_params(&mut self) {
-        let url = &self.request_data.borrow().url_string;
-        self.parameters = url::Url::options()
-                    .parse(&url)
-                    .map(|u| {
-                        u.query_pairs()
-                            .map(|(k, v)| (k.to_string(), v.to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_else(|_| vec![]);
-    }
 }
 
 fn get_base_url(url: &str) -> &str {

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::{vec};
 
 use egui::{collapsing_header::CollapsingState, RichText};
-use egui::{ScrollArea, Layout, TextEdit, Stroke, Rounding};
+use egui::{ScrollArea, Layout, TextEdit, Stroke, Rounding, Modifiers, Key};
 
 use egui_dock::{DockArea, DockState, Style, TabStyle};
 
@@ -17,6 +17,7 @@ use crate::collection::Collection;
 use crate::tabs::TabViewer;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
+// TODO: Manually implement Deserialize so the Rc<RefCells<>> Work
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct LettersApp {
@@ -28,7 +29,6 @@ pub struct LettersApp {
     #[serde(skip)]
     new_collection_name: String,
  
-    #[serde(skip)]
     collections: Rc<RefCell<Vec<Collection>>>,
     
     #[serde(skip)]
@@ -64,7 +64,9 @@ impl LettersApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            let mut app: LettersApp = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            app.tab_viewer = TabViewer::new(Rc::clone(&app.collections));
+            return app;
         }
 
         Default::default()
@@ -185,6 +187,15 @@ impl eframe::App for LettersApp {
                     }
                 });
         });
+        
+        if ctx.input_mut(|i| i.consume_shortcut(&egui::KeyboardShortcut { modifiers: Modifiers::CTRL, key: Key::S })) {
+            let leaf = self.dock_state.find_active_focused();
+            if let Some((_, tab)) = leaf {
+                if let Some(request) = self.tab_viewer.requests.get_mut(tab) {
+                    request.wants_save = true;
+                }
+            }
+        }
         
         let mut dock_style = Style::from_egui(&ctx.style());
         dock_style.main_surface_border_stroke = Stroke::NONE;

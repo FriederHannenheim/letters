@@ -6,10 +6,9 @@ mod tabs;
 
 use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
-use std::default;
+use std::fmt::Debug;
 use std::hash::{Hasher, Hash};
-use std::ops::DerefMut;
-use std::{collections::HashMap, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use egui::collapsing_header::HeaderResponse;
 use egui::{Ui, Layout, Align, TextEdit, TextBuffer, ScrollArea, Button};
@@ -23,6 +22,7 @@ use poll_promise::Promise;
 use ehttp;
 
 use crate::tabs::auth::AuthData;
+use crate::tabs::Tab;
 use crate::{tabs::auth::AuthType, collection::CollectionData};
 use crate::request::tabs::auth_tab::AuthorizationTab;
 
@@ -110,11 +110,13 @@ impl Default for RequestData {
 }
 
 // TODO: Move name to RequestData and have RequestData.changed = true if the data has been modified since the last save
+// TODO: Remove the Rc<RefCell<RequestData>> and pass the RequestData into the Tabs on render
 #[derive(Serialize, Deserialize)]
 pub struct Request {
     pub uuid: Uuid,
     
-    data: Rc<RefCell<RequestData>>,
+    request_data: RequestData,
+    // TODO: This is probably also not serialized correctly. Find an answer! Maybe pass in the data when rendering the request
     collection_data: Rc<RefCell<CollectionData>>,
     
     #[serde(skip)]
@@ -131,6 +133,13 @@ pub struct Request {
     pub saved_data_hash: Option<u64>,
 }
 
+impl Debug for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Request UUID: {}", self.uuid)
+    }
+}
+
+
 impl PartialEq for Request {
     fn eq(&self, other: &Self) -> bool {
         self.uuid == other.uuid
@@ -141,12 +150,12 @@ impl Eq for Request {}
 
 impl Clone for Request {
     fn clone(&self) -> Self {
-        let data = self.data.borrow().clone();
+        let data = self.request_data.borrow().clone();
         
         Self {
             uuid: self.uuid,
             // We don't want to clone the reference, but the data
-            data: Rc::new(RefCell::new(data)),
+            request_data: Rc::new(RefCell::new(data)),
             collection_data: Rc::clone(&self.collection_data),
             promise: None,
             tab: self.tab.clone(),
@@ -166,12 +175,12 @@ impl Request {
         let data = Rc::new(RefCell::new(Default::default()));
         Self {
             uuid: Uuid::new_v4(),
-            data: Rc::clone(&data),
+            request_data: Rc::clone(&data),
             collection_data,
             promise: Default::default(),
             tab: RequestTab::Parameters,
             auth_tab: AuthorizationTab::new(Rc::clone(&data)),
-            params_tab: ParametersTab::new(Rc::clone(&data)),
+            params_tab: ParametersTab::new(),
             headers_tab: HeadersTab::new(Rc::clone(&data)),
             body_tab: BodyTab::new(Rc::clone(&data)),
             wants_save: false,
@@ -189,7 +198,7 @@ impl Request {
         let mut uri_changed = false;
         TopBottomPanel::top(format!("request_top_panel_{}", &self.uuid)).resizable(true).show_inside(ui, |ui| {
             ui.horizontal(|ui| {
-                let name = &mut self.data.borrow_mut().name;
+                let name = &mut self.request_data.borrow_mut().name;
                 ui.text_edit_singleline(name);
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                     if ui.button("Save").clicked() {
@@ -201,9 +210,9 @@ impl Request {
 
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_source("request_method")
-                    .selected_text(format!("{:?}", self.data.borrow_mut().method))
+                    .selected_text(format!("{:?}", self.request_data.borrow_mut().method))
                     .show_ui(ui, |ui| {
-                        let method = &mut self.data.borrow_mut().method;
+                        let method = &mut self.request_data.borrow_mut().method;
                         ui.selectable_value(method, RequestMethod::Options, "OPTIONS");
                         ui.selectable_value(method, RequestMethod::Head, "HEAD");
                         ui.selectable_value(method, RequestMethod::Get, "GET");
@@ -216,7 +225,7 @@ impl Request {
                     if resp.clicked() {
                         self.send_request(&resp.ctx);
                     }
-                    let host = &mut self.data.borrow_mut().url_string;
+                    let host = &mut self.request_data.borrow_mut().url_string;
                     let host_bar = egui::TextEdit::singleline(host)
                                                             .hint_text("https://...")
                                                             .desired_width(ui.available_width());
@@ -234,7 +243,7 @@ impl Request {
             
             match self.tab {
                 RequestTab::Parameters => {
-                    self.params_tab.render(ui);
+                    self.params_tab.render(ui, &mut self.request_data);
                 },
                 RequestTab::Authorization => {
                     self.auth_tab.render(ui);
@@ -277,7 +286,7 @@ impl Request {
     }
     
     pub fn name(&self) -> String {
-        self.data.borrow_mut().name.clone()
+        self.request_data.borrow_mut().name.clone()
     }
     
     /// Checks if we want to save and marks the saved data as unchanged if we do
@@ -287,7 +296,7 @@ impl Request {
             return false;
         }
         
-        let data = self.data.borrow();
+        let data = self.request_data.borrow();
         let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
         self.saved_data_hash = Some(hasher.finish());
@@ -300,7 +309,7 @@ impl Request {
             return true;
         };
         
-        let data = self.data.borrow();
+        let data = self.request_data.borrow();
         let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
         
@@ -308,7 +317,7 @@ impl Request {
     }
     
     fn send_request(&mut self, ctx: &egui::Context) {
-        let request_data = self.data.borrow_mut();
+        let request_data = self.request_data.borrow_mut();
         
         let mut headers = BTreeMap::new();
         for (key, value) in request_data.headers.clone() {
@@ -317,10 +326,13 @@ impl Request {
         
         let ctx = ctx.clone();
         let (sender, promise) = Promise::new();
+        println!("Selected Body: {:?}, Body: {:?}", request_data.selected_body, request_data.body);
+        let body = request_data.body.get(&request_data.selected_body).map(|b| b.clone().to_body()).unwrap_or_default();
+        println!("request_body: {:?}", body);
         let request = ehttp::Request{
             method: request_data.method.to_string(),
             url: request_data.url_string.clone(),
-            body: vec![],
+            body,
             headers,
         };
         ehttp::fetch(request, move |response| {

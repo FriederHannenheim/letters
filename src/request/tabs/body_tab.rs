@@ -4,7 +4,7 @@
 
 use std::{rc::Rc, cell::RefCell, default};
 
-use egui::Ui;
+use egui::{Ui, TextEdit};
 use serde::{Serialize, Deserialize};
 
 use crate::request::RequestData;
@@ -54,5 +54,21 @@ impl BodyTab {
             ui.radio_value(selected_body, BodyType::Raw, "Raw");
             ui.radio_value(selected_body, BodyType::Binary, "Binary");
         });
+        ui.add_space(5.);
+            
+        let mut request_data = self.request_data.borrow_mut();
+        match request_data.selected_body {
+            BodyType::None => {},
+            BodyType::Raw => {
+                let body_data = request_data.body.entry(BodyType::Raw)
+                    .or_insert(BodyData::Raw { data: String::new() });
+                let BodyData::Raw { data } = body_data else {
+                    panic!("Someone inserted a wrong body type into the request body value");
+                };
+                let text_edit = TextEdit::multiline(data).code_editor();
+                ui.add(text_edit);
+            },
+            BodyType::Binary => todo!(),
+        }
     }
 }
