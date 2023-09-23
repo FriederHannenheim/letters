@@ -12,8 +12,8 @@ fn main() -> eframe::Result<()> {
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
-        "Letters",
+        "Packets",
         native_options,
-        Box::new(|cc| Box::new(letters::LettersApp::new(cc))),
+        Box::new(|cc| Box::new(packets::PacketsApp::new(cc))),
     )
 }

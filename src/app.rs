@@ -20,7 +20,7 @@ use crate::tabs::TabViewer;
 // TODO: Manually implement Deserialize so the Rc<RefCells<>> Work
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct LettersApp {
+pub struct PacketsApp {
     #[serde(skip)]
     selected_collection: Option<usize>,
     #[serde(skip)]
@@ -38,7 +38,7 @@ pub struct LettersApp {
     tab_viewer: TabViewer,
 }
 
-impl Default for LettersApp {
+impl Default for PacketsApp {
     fn default() -> Self {
         let collections = Rc::new(RefCell::new(vec![]));
         Self {
@@ -55,7 +55,7 @@ impl Default for LettersApp {
 // TODO: Delete Collection
 // TODO: Free-Standing Requests
 // TODO: Global ctrl+s shortcut
-impl LettersApp {
+impl PacketsApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -64,7 +64,7 @@ impl LettersApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
-            let mut app: LettersApp = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            let mut app: PacketsApp = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
             app.tab_viewer = TabViewer::new(Rc::clone(&app.collections));
             return app;
         }
@@ -73,7 +73,7 @@ impl LettersApp {
     }
 }
 
-impl eframe::App for LettersApp {
+impl eframe::App for PacketsApp {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -86,7 +86,7 @@ impl eframe::App for LettersApp {
         
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.add_space(8.);
-            ui.heading(RichText::new("Letters").size(20.).strong());
+            ui.heading(RichText::new("Packets").size(20.).strong());
             ui.add_space(6.);
         });
 

@@ -9,4 +9,4 @@ mod request;
 mod collection;
 mod tabs;
 
-pub use app::LettersApp;
+pub use app::PacketsApp;

@@ -1352,27 +1352,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
-name = "letters"
-version = "0.1.0"
-dependencies = [
- "base64-url",
- "eframe",
- "egui",
- "egui_dock",
- "egui_extras",
- "ehttp",
- "env_logger",
- "log",
- "percent-encoding",
- "poll-promise",
- "serde",
- "url",
- "url-escape",
- "uuid",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1710,6 +1689,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "706de7e2214113d63a8238d1910463cfce781129a6f263d13fdb09ff64355ba4"
 dependencies = [
  "ttf-parser",
+]
+
+[[package]]
+name = "packets"
+version = "0.1.0"
+dependencies = [
+ "base64-url",
+ "eframe",
+ "egui",
+ "egui_dock",
+ "egui_extras",
+ "ehttp",
+ "env_logger",
+ "log",
+ "percent-encoding",
+ "poll-promise",
+ "serde",
+ "url",
+ "url-escape",
+ "uuid",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
