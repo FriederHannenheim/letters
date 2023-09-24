@@ -14,7 +14,7 @@ use egui_dock::{DockArea, DockState, Style, TabStyle};
 use uuid::Uuid;
 
 use crate::collection::Collection;
-use crate::tabs::TabViewer;
+use crate::tab_viewer::TabViewer;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // TODO: Manually implement Deserialize so the Rc<RefCells<>> Work
@@ -125,7 +125,7 @@ impl eframe::App for PacketsApp {
                                 
                                 ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button("+").clicked() {
-                                        collection.create_request("New Request");
+                                        collection.create_request();
                                     }
                                     if ui.add_sized(ui.available_size(), label).clicked() {
                                         if let Some(tab_location) = self.dock_state.find_tab(&collection.uuid) {

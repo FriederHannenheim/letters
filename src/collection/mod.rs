@@ -69,8 +69,8 @@ impl Collection {
         });
     }
     
-    pub fn create_request(&mut self, name: &str) {
-        self.requests.push(Request::new(name, Rc::clone(&self.data)))
+    pub fn create_request(&mut self) {
+        self.requests.push(Request::new(Rc::clone(&self.data)))
     }
 }
 

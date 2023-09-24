@@ -4,7 +4,7 @@
 
 use std::{rc::Rc, cell::RefCell};
 
-use egui::Ui;
+use egui::{Ui, Button};
 use egui_extras::{TableBuilder, Column};
 
 use serde::{Serialize, Deserialize};
@@ -100,7 +100,8 @@ impl Tab for ParametersTab {
                             params_changed |= resp.changed();
                         });
                         row.col(|ui| {
-                            if ui.button("x").clicked() {
+                            let b = Button::new("x");
+                            if ui.add_sized(ui.available_size(), b).clicked() {
                                 remove_param = Some(i);
                             }
                         });

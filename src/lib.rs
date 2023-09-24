@@ -8,5 +8,6 @@ mod app;
 mod request;
 mod collection;
 mod tabs;
+mod tab_viewer;
 
 pub use app::PacketsApp;

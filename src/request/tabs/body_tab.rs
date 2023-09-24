@@ -7,7 +7,7 @@ use std::{rc::Rc, cell::RefCell, default};
 use egui::{Ui, TextEdit};
 use serde::{Serialize, Deserialize};
 
-use crate::request::RequestData;
+use crate::{request::RequestData, tabs::Tab};
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BodyType {
@@ -36,27 +36,25 @@ impl BodyData {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct BodyTab {
-    request_data: Rc<RefCell<RequestData>>,
-}
+pub struct BodyTab;
 
 impl BodyTab {
-    pub fn new(request_data: Rc<RefCell<RequestData>>) -> Self  {
-        Self {
-            request_data
-        }
+    pub fn new() -> Self  {
+        Self {}
     }
+}
+impl Tab for BodyTab {
+    type T = RequestData;
     
-    pub fn render(&mut self, ui: &mut Ui) {
+    fn render(&mut self, ui: &mut Ui, request_data: &mut Self::T) {
         ui.horizontal(|ui| {
-            let selected_body = &mut self.request_data.borrow_mut().selected_body;
+            let selected_body = &mut request_data.selected_body;
             ui.radio_value(selected_body, BodyType::None, "None");
             ui.radio_value(selected_body, BodyType::Raw, "Raw");
             ui.radio_value(selected_body, BodyType::Binary, "Binary");
         });
         ui.add_space(5.);
             
-        let mut request_data = self.request_data.borrow_mut();
         match request_data.selected_body {
             BodyType::None => {},
             BodyType::Raw => {
@@ -66,7 +64,9 @@ impl BodyTab {
                     panic!("Someone inserted a wrong body type into the request body value");
                 };
                 let text_edit = TextEdit::multiline(data).code_editor();
-                ui.add(text_edit);
+                ui.horizontal(|ui| {
+                    ui.add_sized(ui.available_size(), text_edit);
+                });
             },
             BodyType::Binary => todo!(),
         }
