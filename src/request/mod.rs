@@ -12,12 +12,14 @@ use std::{cell::RefCell, rc::Rc};
 
 use egui::{Ui, Layout, Align, TextEdit, ScrollArea, TopBottomPanel};
 
+use reqwest::blocking::{Client, Response};
+use reqwest::Method;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Serialize, Deserialize};
 
 use uuid::Uuid;
 
 use poll_promise::Promise;
-use ehttp;
 
 use crate::tabs::auth::AuthData;
 use crate::tabs::Tab;
@@ -36,6 +38,19 @@ pub enum RequestMethod {
     Post,
     Put,
     Patch
+}
+
+impl Into<reqwest::Method> for RequestMethod {
+    fn into(self) -> reqwest::Method {
+        match self {
+            RequestMethod::Options => Method::OPTIONS,
+            RequestMethod::Head => Method::HEAD,
+            RequestMethod::Get => Method::GET,
+            RequestMethod::Post => Method::POST,
+            RequestMethod::Put => Method::PUT,
+            RequestMethod::Patch => Method::PATCH,
+        }
+    }
 }
 
 impl ToString for RequestMethod {
@@ -116,7 +131,7 @@ pub struct Request {
     collection_data: Rc<RefCell<CollectionData>>,
     
     #[serde(skip)]
-    promise: Option<Promise<ehttp::Result<String>>>,
+    promise: Option<Promise<Result<Response, reqwest::Error>>>,
     
     tab: RequestTab,
     
@@ -254,9 +269,9 @@ impl Request {
         if let Some(promise) = &mut self.promise {
             if let Some(result) = promise.ready() {
                 let mut response_text = match result {
-                    Ok(s) => s,
-                    Err(s) => s,
-                }.as_str();
+                    Ok(s) => (*s).clone().text().unwrap_or_default(),
+                    Err(s) => s.to_string(),
+                };
                 let textedit = TextEdit::multiline(&mut response_text)
                     .frame(true)
                     .code_editor();
@@ -317,22 +332,43 @@ impl Request {
         let ctx = ctx.clone();
         let (sender, promise) = Promise::new();
         let body = self.request_data.body.get(&self.request_data.selected_body).map(|b| b.clone().to_body()).unwrap_or_default();
-        let request = ehttp::Request{
-            method: self.request_data.method.to_string(),
-            url: self.request_data.url_string.clone(),
-            body,
-            headers,
-        };
-        ehttp::fetch(request, move |response| {
-            ctx.request_repaint(); // wake up UI thread
-            let resource = response.and_then(|response| {
-                match String::from_utf8(response.bytes) {
-                    Ok(s) => Ok(s),
-                    Err(_e) => Err(String::from("Response is invalid UTF-8")),
+
+        let client = Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap();
+
+        let mut headers = HeaderMap::new();
+
+        for (key, value) in self.request_data.headers.clone() {
+            // TODO: This needs better error handling
+            let header_name = HeaderName::from_bytes(key.as_bytes()).unwrap();
+            let header_value = HeaderValue::from_str(&value).unwrap();
+            headers.append(header_name, header_value);
+        }
+
+        let request_builder = client
+            .request(self.request_data.method.clone().into(), self.request_data.url_string.clone())
+            .headers(headers)
+            .body(body);
+
+        let request = request_builder.build();
+        
+        std::thread::spawn(move|| {
+            let request = match request {
+                Ok(r) => r,
+                Err(e) => {
+                    sender.send(Err(e));
+                    return;
                 }
-            });
-            sender.send(resource);
+            };
+
+            sender.send(client.execute(request));
+            ctx.request_repaint();
+            
         });
+
+
         self.promise = Some(promise);
     }
 }
